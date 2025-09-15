@@ -154,10 +154,12 @@ class Relationship(Star):
 
         if query_rounds:
             yield event.plain_result(
-                f"已从{query_rounds * self.conf['per_msg_count']}条群消息中获取了{nickname}的{len(contexts)}条消息，正在分析..."
+                f"已从{query_rounds * self.conf['per_msg_count']}条群消息中获取了{len(contexts)}条{nickname}的消息，正在分析..."
             )
         else:
-            yield event.plain_result(f"已从缓存中获取了{nickname}的{len(contexts)}条消息，正在分析...")
+            yield event.plain_result(
+                f"已从缓存中获取了{len(contexts)}条{nickname}的消息，正在分析..."
+            )
 
         try:
             llm_respond = await self.get_llm_respond(nickname, gender, contexts)
