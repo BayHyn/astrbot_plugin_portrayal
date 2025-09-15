@@ -13,13 +13,15 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     "astrbot_plugin_portrayal",
     "Zhalslar",
     "根据群友的聊天记录，调用llm分析群友的性格画像",
-    "1.0.1",
+    "1.0.2",
     "https://github.com/Zhalslar/astrbot_plugin_portrayal",
 )
 class Relationship(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.conf = config
+        # 上下文缓存
+        self.contexts_cache: dict[str, list[dict[str, str]]] = {}
 
     def _build_user_context(
         self, round_messages: list[dict[str, Any]], target_id: str
@@ -48,7 +50,10 @@ class Relationship(Star):
         return contexts
 
     async def get_msg_contexts(
-        self, event: AiocqhttpMessageEvent, target_id: str
+        self,
+        event: AiocqhttpMessageEvent,
+        target_id: str,
+        max_query_rounds: int
     ) -> tuple[list[dict], int]:
         """持续获取群聊历史消息直到达到要求"""
         group_id = event.get_group_id()
@@ -72,10 +77,9 @@ class Relationship(Star):
 
             contexts.extend(self._build_user_context(round_messages, target_id))
             query_rounds += 1
-            if query_rounds >= self.conf["max_query_rounds"]:
+            if query_rounds >= max_query_rounds:
                 break
         return contexts, query_rounds
-
 
     async def get_llm_respond(
         self, nickname: str, gender: str, contexts: list[dict]
@@ -121,31 +125,52 @@ class Relationship(Star):
         )
 
     @filter.command("画像")
-    async def get_portrayal(self, event: AiocqhttpMessageEvent):
+    async def get_portrayal(
+        self, event: AiocqhttpMessageEvent, max_query_rounds: int | None = None
+    ):
         """
         抽查指定群聊的消息，并分析指定群友画像
         """
         target_id: str = await self.get_at_id(event) or event.get_sender_id()
-
         nickname, gender = await self.get_nickname(event, target_id)
-
-        contexts, query_rounds = await self.get_msg_contexts(event, target_id)
-
+        contexts, query_rounds = None, None
+        if self.contexts_cache and target_id in self.contexts_cache:
+            contexts = self.contexts_cache[target_id]
+        else:
+            # 每轮查询200条消息，200轮查询4w条消息,几乎接近漫游极限
+            target_query_rounds = min(200,
+                max(0, max_query_rounds or int(self.conf["max_query_rounds"]))
+            )
+            yield event.plain_result(
+                f"正在发起{target_query_rounds}轮查询来获取{nickname}的消息..."
+            )
+            contexts, query_rounds = await self.get_msg_contexts(
+                event, target_id, target_query_rounds
+            )
+            self.contexts_cache[target_id] = contexts
         if not contexts:
             yield event.plain_result("没有找到该群友的任何消息")
             return
-        total_msg_count = query_rounds * self.conf["per_msg_count"]
-        yield event.plain_result(
-            f"已从{total_msg_count}条群消息中获取了{nickname}的{len(contexts)}条消息，正在分析..."
-        )
+
+        if query_rounds:
+            yield event.plain_result(
+                f"已从{query_rounds * self.conf['per_msg_count']}条群消息中获取了{nickname}的{len(contexts)}条消息，正在分析..."
+            )
+        else:
+            yield event.plain_result(f"已从缓存中获取了{nickname}的{len(contexts)}条消息，正在分析...")
 
         try:
             llm_respond = await self.get_llm_respond(nickname, gender, contexts)
             if llm_respond:
                 url = await self.text_to_image(llm_respond)
                 yield event.image_result(url)
+                del self.contexts_cache[target_id]
             else:
                 yield event.plain_result("LLM响应为空")
         except Exception as e:
             logger.error(f"LLM 调用失败：{e}")
             yield event.plain_result(f"分析失败:{e}")
+
+    async def terminate(self):
+        """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
+        self.contexts_cache.clear()
