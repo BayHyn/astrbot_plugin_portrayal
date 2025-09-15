@@ -1,14 +1,20 @@
 {
-    "message_count": {
-        "description": "用于分析群友的聊天记录数量",
+    "per_msg_count":{
+        "description": "每轮获取的群消息数量",
         "type": "int",
-        "hint": "越多越准确，但需要消耗更多时间和Token，到达此值时停止获取聊天记录",
+        "hint": "每轮获取这么多的消息，从这些消息中抽取出目标群友的文本消息",
         "default": 200
     },
-    "max_query_rounds": {
-        "description": "查询允许的最大轮数",
+    "max_msg_count": {
+        "description": "总共要获取的好友消息数量",
         "type": "int",
-        "hint": "每轮查询200条消息，如果查询的轮数超过最大允许查询的轮数，则停止获取聊天记录，避免查询长时间不发言的人时，执行过多无效查询",
+        "hint": "获取的消息数量到达此值时停止轮询。用于分析的消息量越多，画像越准确，但需要消耗更多时间和Token",
+        "default": 500
+    },
+    "max_query_rounds": {
+        "description": "获取群消息的最大轮数",
+        "type": "int",
+        "hint": "对于不爱说话的人时，轮询再多的消息，Ta的消息也凑不够，当达到最大轮数时，强制停止轮询",
         "default": 10
     },
     "system_prompt_template": {
