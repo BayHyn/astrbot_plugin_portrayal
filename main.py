@@ -129,7 +129,7 @@ class Relationship(Star):
         self, event: AiocqhttpMessageEvent, max_query_rounds: int | None = None
     ):
         """
-        抽查指定群聊的消息，并分析指定群友画像
+        画像 <查询轮数> @群友
         """
         target_id: str = await self.get_at_id(event) or event.get_sender_id()
         nickname, gender = await self.get_nickname(event, target_id)
