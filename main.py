@@ -49,7 +49,7 @@ class Relationship(Star):
 
     async def get_msg_contexts(
         self, event: AiocqhttpMessageEvent, target_id: str
-    ) -> list[dict]:
+    ) -> tuple[list[dict], int]:
         """持续获取群聊历史消息直到达到要求"""
         group_id = event.get_group_id()
         query_rounds = 0
@@ -74,7 +74,7 @@ class Relationship(Star):
             query_rounds += 1
             if query_rounds >= self.conf["max_query_rounds"]:
                 break
-        return contexts
+        return contexts, query_rounds
 
 
     async def get_llm_respond(
@@ -129,14 +129,14 @@ class Relationship(Star):
 
         nickname, gender = await self.get_nickname(event, target_id)
 
-        contexts = await self.get_msg_contexts(event, target_id)
+        contexts, query_rounds = await self.get_msg_contexts(event, target_id)
 
         if not contexts:
             yield event.plain_result("没有找到该群友的任何消息")
             return
-
+        total_msg_count = query_rounds * self.conf["per_msg_count"]
         yield event.plain_result(
-            f"已获取{nickname}的{len(contexts)}条消息，正在分析..."
+            f"已从{total_msg_count}条群消息中获取了{nickname}的{len(contexts)}条消息，正在分析..."
         )
 
         try:
