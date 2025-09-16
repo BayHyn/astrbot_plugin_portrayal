@@ -12,9 +12,8 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 @register(
     "astrbot_plugin_portrayal",
     "Zhalslar",
-    "根据群友的聊天记录，调用llm分析群友的性格画像",
-    "1.0.2",
-    "https://github.com/Zhalslar/astrbot_plugin_portrayal",
+    "分析群友的性格画像",
+    "1.0.3",
 )
 class Relationship(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -50,10 +49,7 @@ class Relationship(Star):
         return contexts
 
     async def get_msg_contexts(
-        self,
-        event: AiocqhttpMessageEvent,
-        target_id: str,
-        max_query_rounds: int
+        self, event: AiocqhttpMessageEvent, target_id: str, max_query_rounds: int
     ) -> tuple[list[dict], int]:
         """持续获取群聊历史消息直到达到要求"""
         group_id = event.get_group_id()
@@ -126,10 +122,13 @@ class Relationship(Star):
 
     @filter.command("画像")
     async def get_portrayal(
-        self, event: AiocqhttpMessageEvent, max_query_rounds: int | None = None
+        self,
+        event: AiocqhttpMessageEvent,
+        at_name: str | None = None,
+        max_query_rounds: int | None = None,
     ):
         """
-        画像 <查询轮数> @群友
+        画像 @群友 <查询轮数>
         """
         target_id: str = await self.get_at_id(event) or event.get_sender_id()
         nickname, gender = await self.get_nickname(event, target_id)
@@ -138,8 +137,8 @@ class Relationship(Star):
             contexts = self.contexts_cache[target_id]
         else:
             # 每轮查询200条消息，200轮查询4w条消息,几乎接近漫游极限
-            target_query_rounds = min(200,
-                max(0, max_query_rounds or int(self.conf["max_query_rounds"]))
+            target_query_rounds = min(
+                200, max(0, max_query_rounds or int(self.conf["max_query_rounds"]))
             )
             yield event.plain_result(
                 f"正在发起{target_query_rounds}轮查询来获取{nickname}的消息..."
